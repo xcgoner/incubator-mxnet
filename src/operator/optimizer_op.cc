@@ -921,5 +921,36 @@ Note that non-zero values for the weight decay option are not supported.
 .add_argument("history", "NDArray-or-Symbol", "History")
 .add_arguments(AdagradParam::__FIELDS__());
 
+NNVM_REGISTER_OP(_sparse_adaalter_update)
+.describe(R"code(Update function for AdaAlter optimizer.
+
+Referenced from *Adaptive Subgradient Methods for Online Learning and Stochastic Optimization*,
+and available at http://www.jmlr.org/papers/volume12/duchi11a/duchi11a.pdf.
+
+Updates are applied by::
+
+    rescaled_grad = clip(grad * rescale_grad, clip_gradient)
+    w = w - learning_rate * rescaled_grad / sqrt(history + epsilon)
+    history = history + square(rescaled_grad)
+
+Note that non-zero values for the weight decay option are not supported.
+
+)code" ADD_FILELINE)
+.set_num_inputs(3)
+.set_num_outputs(1)
+.set_attr_parser(ParamParser<AdagradParam>)
+.set_attr<mxnet::FInferShape>("FInferShape", ElemwiseShape<3, 1>)
+.set_attr<nnvm::FInferType>("FInferType", ElemwiseType<3, 1>)
+.set_attr<FInferStorageType>("FInferStorageType", AdagradStorageType)
+.set_attr<nnvm::FMutateInputs>("FMutateInputs",
+  [](const nnvm::NodeAttrs& attrs) {
+    return std::vector<uint32_t>{2};
+  })
+.set_attr<FComputeEx>("FComputeEx<cpu>", AdaalterUpdateEx<cpu>)
+.add_argument("weight", "NDArray-or-Symbol", "Weight")
+.add_argument("grad", "NDArray-or-Symbol", "Gradient")
+.add_argument("history", "NDArray-or-Symbol", "History")
+.add_arguments(AdagradParam::__FIELDS__());
+
 }  // namespace op
 }  // namespace mxnet
