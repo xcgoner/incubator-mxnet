@@ -2588,7 +2588,7 @@ inline void LocalAdaalterUpdateRspRspRspImpl(const AdagradParam& param,
 }
 
 template<typename xpu>
-inline void LocalAdalterUpdateEx(const nnvm::NodeAttrs& attrs,
+inline void LocalAdaalterUpdateEx(const nnvm::NodeAttrs& attrs,
                             const OpContext &ctx,
                             const std::vector<NDArray> &inputs,
                             const std::vector<OpReqType> &req,
