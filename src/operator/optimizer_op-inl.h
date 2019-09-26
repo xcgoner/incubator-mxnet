@@ -2620,6 +2620,191 @@ inline void LocalAdaalterUpdateEx(const nnvm::NodeAttrs& attrs,
 }
 
 
+// local adaalter v2
+
+inline bool LocalAdaalterV2StorageType(const nnvm::NodeAttrs& attrs,
+                               const int dev_mask,
+                               DispatchMode* dispatch_mode,
+                               std::vector<int>* in_attrs,
+                               std::vector<int>* out_attrs) {
+  const AdagradParam& param = nnvm::get<AdagradParam>(attrs.parsed);
+  CHECK_EQ(in_attrs->size(), 4U);
+  CHECK_EQ(out_attrs->size(), 1U);
+  const int weight_stype = in_attrs->at(0);
+  const int grad_stype = in_attrs->at(1);
+  const int state_stype = in_attrs->at(2);
+  const int cache_state_stype = in_attrs->at(3);
+  bool dispatched = false;
+  if (!dispatched && grad_stype == kRowSparseStorage &&
+      (weight_stype == kRowSparseStorage || weight_stype == kDefaultStorage) &&
+      state_stype == weight_stype && cache_state_stype == weight_stype && param.wd == 0.0f) {
+    // weight and state share stype, grad's stype = rsp
+    dispatched = storage_type_assign(
+        out_attrs, static_cast<NDArrayStorageType>(weight_stype), dispatch_mode,
+        DispatchMode::kFComputeEx);
+  }
+  return dispatched;
+}
+
+template<typename xpu>
+struct LocalAdaalterV2DnsRspDnsKernel;
+
+template<>
+struct LocalAdaalterV2DnsRspDnsKernel<cpu> {
+  template<typename DType, typename IType>
+  MSHADOW_XINLINE static void Map(int i, index_t row_length, DType* out_data,
+    DType* state_data, DType* cache_state_data, const DType* weight_data, const IType* grad_idx,
+    const DType* grad_data, const DType clip_gradient, const DType epsilon,
+    const DType lr, const DType rescale_grad) {
+    using nnvm::dim_t;
+    using namespace mshadow_op;
+    const dim_t data_i = grad_idx[i] * row_length;
+    const dim_t grad_i = i * row_length;
+    for (dim_t j = 0; j < row_length; j++) {
+      const dim_t data_j = data_i + j;
+      const dim_t grad_j = grad_i + j;
+      DType grad_rescaled = grad_data[grad_j] * rescale_grad;
+      if (clip_gradient >= 0.0f) {
+        grad_rescaled = clip::Map(grad_rescaled, clip_gradient);
+      }
+      // const DType grad_squared = grad_rescaled * grad_rescaled;
+      // TODO: do not need to take sqrt every time for local sgd
+      const DType div = grad_rescaled / square_root::Map(state_data[data_j] + epsilon);
+      // No need to use KERNEL_ASSIGN, as we already checked req is kWriteInplace
+      out_data[data_j] = weight_data[data_j] - div * lr;
+      cache_state_data[data_j] += grad_rescaled;
+    }
+  }
+};
+
+template<>
+struct LocalAdaalterV2DnsRspDnsKernel<gpu> {
+  template<typename DType, typename IType>
+  MSHADOW_XINLINE static void Map(int i, index_t row_length, DType* out_data,
+    DType* state_data, DType* cache_state_data, const DType* weight_data, const IType* grad_idx,
+    const DType* grad_data, const DType clip_gradient, const DType epsilon,
+    const DType lr, const DType rescale_grad) {
+    using nnvm::dim_t;
+    using namespace mshadow_op;
+    const dim_t row_id = i / row_length;
+    const dim_t col_id = i % row_length;
+    const dim_t data_i = grad_idx[row_id] * row_length + col_id;
+    DType grad_rescaled = grad_data[i] * rescale_grad;
+    if (clip_gradient >= 0.0f) {
+      grad_rescaled = clip::Map(grad_rescaled, clip_gradient);
+    }
+    const DType div = grad_rescaled / square_root::Map(state_data[data_i] + epsilon);
+    // No need to use KERNEL_ASSIGN, as we already checked req is kWriteInplace
+    out_data[data_i] = weight_data[data_i] - div * lr;
+    // const DType grad_squared = grad_rescaled * grad_rescaled;
+    cache_state_data[data_i] += grad_rescaled;
+  }
+};
+
+template<typename xpu>
+void LocalAdaalterV2UpdateDnsRspDnsImpl(const AdagradParam& param,
+                                const OpContext& ctx,
+                                const TBlob& weight,
+                                const NDArray& grad,
+                                const TBlob& state,
+                                const TBlob& cache_state,
+                                const OpReqType& req,
+                                TBlob *out) {
+  using namespace mxnet_op;
+  using namespace rowsparse;
+  using namespace mshadow;
+  Stream<xpu>* s = ctx.get_stream<xpu>();
+  CHECK_EQ(param.wd, 0.0f)
+    << "sparse local_adaalterv2_update does not support wd.";
+  if (req == kNullOp || !grad.storage_initialized()) return;
+  CHECK_EQ(req, kWriteInplace) << "kWriteInplace is expected for sparse local_adaalterv2_update";
+  CHECK_GT(weight.shape_.Size(), 0);
+  CHECK_GT(state.shape_.Size(), 0);
+  CHECK_GT(cache_state.shape_.Size(), 0);
+  MSHADOW_REAL_TYPE_SWITCH(weight.type_flag_, DType, {
+    MSHADOW_IDX_TYPE_SWITCH(grad.aux_type(kIdx), IType, {
+      const DType* weight_data = weight.dptr<DType>();
+      const IType* grad_idx = grad.aux_data(kIdx).dptr<IType>();
+      const DType* grad_val = grad.data().dptr<DType>();
+      DType* state_data = state.dptr<DType>();
+      DType* cache_state_data = cache_state.dptr<DType>();
+      DType* out_data = out->dptr<DType>();
+      const nnvm::dim_t nnr = grad.storage_shape()[0];
+      const auto row_length = weight.shape_.ProdShape(1, weight.ndim());
+      size_t num_threads = nnr;
+      if (std::is_same<xpu, gpu>::value) {
+        num_threads = nnr * row_length;
+      }
+      Kernel<LocalAdaalterV2DnsRspDnsKernel<xpu>, xpu>::Launch(s, num_threads, row_length,
+        out_data, state_data, cache_state_data, weight_data, grad_idx, grad_val,
+        static_cast<DType>(param.clip_gradient), static_cast<DType>(param.epsilon),
+        static_cast<DType>(param.lr), static_cast<DType>(param.rescale_grad));
+    });
+  });
+}
+
+template<typename xpu>
+inline void LocalAdaalterV2UpdateRspRspRspImpl(const AdagradParam& param,
+                                       const OpContext& ctx,
+                                       const NDArray& weight,
+                                       const NDArray& grad,
+                                       const NDArray& state,
+                                       const NDArray& cache_state,
+                                       const OpReqType& req,
+                                       NDArray *out) {
+  using namespace mshadow;
+  using namespace mxnet_op;
+  using namespace rowsparse;
+  CheckAllRowsPresent(weight, "LocalAdaalterV2Update", "weights");
+  Stream<xpu>* s = ctx.get_stream<xpu>();
+  // fill history with zero values
+  if (!state.storage_initialized()) {
+    NDArray state_zeros = state;
+    FillDnsZerosRspImpl(s, &state_zeros);
+  }
+  if (!cache_state.storage_initialized()) {
+    NDArray cache_state_zeros = cache_state;
+    FillDnsZerosRspImpl(s, &cache_state_zeros);
+  }
+  TBlob out_blob = out->data();
+  // reuse dns rsp implementation when storage_shape == shape
+  LocalAdaalterV2UpdateDnsRspDnsImpl<xpu>(param, ctx, weight.data(), grad,
+                                  state.data(), cache_state.data(), req, &out_blob);
+}
+
+template<typename xpu>
+inline void LocalAdaalterV2UpdateEx(const nnvm::NodeAttrs& attrs,
+                            const OpContext &ctx,
+                            const std::vector<NDArray> &inputs,
+                            const std::vector<OpReqType> &req,
+                            const std::vector<NDArray> &outputs) {
+  using namespace mxnet_op;
+  const AdagradParam& param = nnvm::get<AdagradParam>(attrs.parsed);
+
+  const auto weight_stype = inputs[0].storage_type();
+  const auto grad_stype = inputs[1].storage_type();
+  const auto state_stype = inputs[2].storage_type();
+  const auto cache_state_stype = inputs[3].storage_type();
+  const auto output_stype = outputs[0].storage_type();
+
+  if (common::ContainsOnlyStorage(inputs, kRowSparseStorage) &&
+      common::ContainsOnlyStorage(outputs, kRowSparseStorage)) {
+    NDArray out = outputs[0];
+    LocalAdaalterV2UpdateRspRspRspImpl<xpu>(param, ctx, inputs[0], inputs[1], inputs[2],
+                                    inputs[3], req[0], &out);
+  } else if (state_stype == weight_stype && output_stype == weight_stype &&
+             weight_stype == kDefaultStorage &&
+             grad_stype == kRowSparseStorage) {
+    TBlob out_blob = outputs[0].data();
+    LocalAdaalterV2UpdateDnsRspDnsImpl<xpu>(param, ctx, inputs[0].data(), inputs[1],
+                                    inputs[2].data(), inputs[3].data(), req[0],
+                                    &out_blob);
+  } else {
+    LogUnimplementedOp(attrs, ctx, inputs, req, outputs);
+  }
+}
+
+
 }  // namespace op
 }  // namespace mxnet
 

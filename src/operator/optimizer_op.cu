@@ -283,5 +283,8 @@ NNVM_REGISTER_OP(_sparse_adaalter_update)
 NNVM_REGISTER_OP(_sparse_local_adaalter_update)
 .set_attr<FComputeEx>("FComputeEx<gpu>", LocalAdaalterUpdateEx<gpu>);
 
+NNVM_REGISTER_OP(_sparse_local_adaalterv2_update)
+.set_attr<FComputeEx>("FComputeEx<gpu>", LocalAdaalterV2UpdateEx<gpu>);
+
 }  // namespace op
 }  // namespace mxnet
