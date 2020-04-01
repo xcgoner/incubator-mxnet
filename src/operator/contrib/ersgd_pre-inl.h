@@ -40,6 +40,7 @@ struct ERSGDPreParam : public dmlc::Parameter<ERSGDPreParam> {
   float rescale_grad;
   float clip_gradient;
   bool  nesterov;
+  bool  layer_sparse;
   DMLC_DECLARE_PARAMETER(ERSGDPreParam) {
     DMLC_DECLARE_FIELD(lr)
     .describe("Learning rate");
