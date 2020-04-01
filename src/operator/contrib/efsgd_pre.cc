@@ -40,14 +40,14 @@ NNVM_REGISTER_OP(efsgd_pre_update)
 .set_attr<nnvm::FInferType>("FInferType", ElemwiseType<5, 1>)
 .set_attr<nnvm::FMutateInputs>("FMutateInputs",
   [](const nnvm::NodeAttrs& attrs) {
-    return std::vector<uint32_t>{2};
+    return std::vector<uint32_t>{1,2,3,4};
   })
 .set_attr<FCompute>("FCompute<cpu>", EFSGDPreUpdate<cpu>)
 .add_argument("weight", "NDArray-or-Symbol", "Weight")
 .add_argument("grad", "NDArray-or-Symbol", "Gradient")
 .add_argument("e", "NDArray-or-Symbol", "Remaining error")
 .add_argument("m", "NDArray-or-Symbol", "Momentum")
-.add_argument("m", "NDArray-or-Symbol", "Momentum of weight decay")
+.add_argument("m_wd", "NDArray-or-Symbol", "Momentum of weight decay")
 .add_arguments(EFSGDPreParam::__FIELDS__());
 
 
