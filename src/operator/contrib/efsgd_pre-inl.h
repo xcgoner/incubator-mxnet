@@ -71,7 +71,7 @@ struct EFSGDPreUpdateKernel {
   template<typename DType>
   MSHADOW_XINLINE static void Map(index_t i,
     DType* out_data, DType* e, DType* m, DType* m_wd,
-    const DType* weight_data, const DType* grad_data,
+    const DType* weight_data, DType* grad_data,
     const DType clip_gradient, const DType rescale_grad,
     const DType momentum, const bool nesterov, 
     const DType lr, const DType wd,  
