@@ -100,14 +100,14 @@ struct EFSGDPreUpdateKernel {
     DType weight = weight_data[i];
     if (nesterov) {
       weight *= (1.f - lr * wd);
-      weight -= momentum * m_wd[i]
+      weight -= momentum * m_wd[i];
     }
     else {
-      weight -= m_wd[i]
+      weight -= m_wd[i];
     }
 
     // error feedback
-    e[i] += grad_data[i]
+    e[i] += grad_data[i];
 
     KERNEL_ASSIGN(out_data[i], req, weight);
   }
