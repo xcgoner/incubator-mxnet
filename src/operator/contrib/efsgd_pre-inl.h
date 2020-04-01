@@ -33,7 +33,7 @@
 namespace mxnet {
 namespace op {
 
-struct EFSGDPreParam : public dmlc::Parameter<EFSGDPrePreParam> {
+struct EFSGDPreParam : public dmlc::Parameter<EFSGDPreParam> {
   float lr;
   float momentum;
   float wd;
