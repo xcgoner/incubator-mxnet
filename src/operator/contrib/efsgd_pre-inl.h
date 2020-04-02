@@ -78,15 +78,13 @@ struct EFSGDPreUpdateKernel {
     const OpReqType req) {
     using namespace mshadow_op;
 
-    DType g = grad_data[i] * rescale_grad;
+    grad_data[i] *= rescale_grad;
 
-    // grad_data[i] *= rescale_grad;
+    if (clip_gradient >= 0.0f) {
+      grad_data[i] = clip::Map(grad_data[i], clip_gradient);
+    }
 
-    // if (clip_gradient >= 0.0f) {
-    //   grad_data[i] = clip::Map(grad_data[i], clip_gradient);
-    // }
-
-    // grad_data[i] *= lr;
+    grad_data[i] *= lr;
 
     // // momentum
     // m[i] = momentum * m[i] + grad_data[i];
