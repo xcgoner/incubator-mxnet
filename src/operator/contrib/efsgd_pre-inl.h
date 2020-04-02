@@ -86,28 +86,30 @@ struct EFSGDPreUpdateKernel {
 
     grad_data[i] *= lr;
 
-    // // momentum
-    // m[i] = momentum * m[i] + grad_data[i];
-    // if (nesterov) {
-    //   grad_data[i] += momentum * m[i];
-    // }
-    // else {
-    //   grad_data[i] = m[i];
-    // }
+    // momentum
+    m[i] = momentum * m[i] + grad_data[i];
+    if (nesterov) {
+      grad_data[i] += momentum * m[i];
+    }
+    else {
+      grad_data[i] = m[i];
+    }
 
-    // // weight decay
-    // m_wd[i] = momentum * m_wd[i] + lr * wd * weight_data[i];
+    // weight decay
+    m_wd[i] = momentum * m_wd[i] + lr * wd * weight_data[i];
+
     DType weight = weight_data[i];
-    // if (nesterov) {
-    //   weight *= (1.f - lr * wd);
-    //   weight -= momentum * m_wd[i];
-    // }
-    // else {
-    //   weight -= m_wd[i];
-    // }
 
-    // // error feedback
-    // e[i] += grad_data[i];
+    if (nesterov) {
+      weight *= (1.f - lr * wd);
+      weight -= momentum * m_wd[i];
+    }
+    else {
+      weight -= m_wd[i];
+    }
+
+    // error feedback
+    e[i] += grad_data[i];
 
     KERNEL_ASSIGN(out_data[i], req, weight);
   }
