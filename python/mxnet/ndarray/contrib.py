@@ -682,10 +682,10 @@ def multi_mp_lamb_update(weights, grads, mean, var, weights32, step_count,
                                                    **kwargs)
 
 
-def efsgd_pre_update(weight, grad, e, m, m_wd, out=None, name=None, **kwargs):
-    return ndarray._internal.efsgd_pre_update(weight=weight, grad=grad, e=e, m=m, 
-                                           m_wd=m_wd, out=out, name=name, **kwargs)
+# def efsgd_pre_update(weight, grad, e, m, m_wd, out=None, name=None, **kwargs):
+#     return ndarray._internal.efsgd_pre_update(weight=weight, grad=grad, e=e, m=m, 
+#                                            m_wd=m_wd, out=out, name=name, **kwargs)
 
-def ersgd_pre_update(weight, grad, r, m, m_wd, out=None, name=None, **kwargs):
-    return ndarray._internal.ersgd_pre_update(weight=weight, grad=grad, r=r, m=m, 
-                                           m_wd=m_wd, out=out, name=name, **kwargs)
+# def ersgd_pre_update(weight, grad, r, m, m_wd, out=None, name=None, **kwargs):
+#     return ndarray._internal.ersgd_pre_update(weight=weight, grad=grad, r=r, m=m, 
+#                                            m_wd=m_wd, out=out, name=name, **kwargs)
