@@ -97,7 +97,7 @@ struct EFSGDPreUpdateKernel {
 
     // // weight decay
     // m_wd[i] = momentum * m_wd[i] + lr * wd * weight_data[i];
-    // DType weight = weight_data[i];
+    DType weight = weight_data[i];
     // if (nesterov) {
     //   weight *= (1.f - lr * wd);
     //   weight -= momentum * m_wd[i];
