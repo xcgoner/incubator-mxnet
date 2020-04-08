@@ -63,6 +63,9 @@ struct ERSGDPreParam : public dmlc::Parameter<ERSGDPreParam> {
     DMLC_DECLARE_FIELD(nesterov)
     .set_default(true)
     .describe("If true, use Nesterov momentum");
+    DMLC_DECLARE_FIELD(version)
+    .set_default(0)
+    .describe("version of implementation");
   }
 };
 
@@ -103,6 +106,52 @@ struct ERSGDLocalUpdateKernel {
     }
     else {
       weight -= m_wd[i];
+    }
+
+    // local update
+    weight -= grad_data[i];
+    r[i] += grad_data[i];
+
+    KERNEL_ASSIGN(out_data[i], req, weight);
+  }
+};
+
+struct ERSGDLocalUpdateKernelV1 {
+  template<typename DType>
+  MSHADOW_XINLINE static void Map(index_t i,
+    DType* out_data, DType* r, DType* m, DType* m_wd,
+    const DType* weight_data, DType* grad_data,
+    const DType clip_gradient, const DType rescale_grad,
+    const DType momentum, const bool nesterov, 
+    const DType lr, const DType wd,  
+    const OpReqType req) {
+    using namespace mshadow_op;
+
+    grad_data[i] *= rescale_grad;
+
+    if (clip_gradient >= 0.0f) {
+      grad_data[i] = clip::Map(grad_data[i], clip_gradient);
+    }
+
+    grad_data[i] *= lr;
+
+    // momentum
+    m[i] = momentum * m[i] + grad_data[i];
+    if (nesterov) {
+      grad_data[i] += momentum * m[i];
+    }
+    else {
+      grad_data[i] = m[i];
+    }
+
+    // weight decay
+    m_wd[i] = momentum * m_wd[i] + lr * wd * weight_data[i];
+    DType weight = weight_data[i];
+    if (nesterov) {
+      grad_data[i] += (momentum * m_wd[i] + lr * wd * weight_data[i]);
+    }
+    else {
+      grad_data[i] += m_wd[i];
     }
 
     // local update
@@ -176,11 +225,21 @@ inline void ERSGDPreUpdate(const nnvm::NodeAttrs &attrs, const OpContext &ctx,
     DType* m_wd = inputs[4].dptr<DType>();
     DType* out_data = outputs[0].dptr<DType>();
 
-    Kernel<ERSGDLocalUpdateKernel, xpu>::Launch(s, inputs[0].shape_.Size(),
-      out_data, r, m, m_wd, weight_data, grad_data,
-      static_cast<DType>(param.clip_gradient), static_cast<DType>(param.rescale_grad),
-      static_cast<DType>(param.momentum), static_cast<bool>(param.nesterov),
-      static_cast<DType>(param.lr), static_cast<DType>(param.wd), req[0]);
+    int version = static_cast<bool>(param.version);
+    if (version == 0) {
+      Kernel<ERSGDLocalUpdateKernel, xpu>::Launch(s, inputs[0].shape_.Size(),
+        out_data, r, m, m_wd, weight_data, grad_data,
+        static_cast<DType>(param.clip_gradient), static_cast<DType>(param.rescale_grad),
+        static_cast<DType>(param.momentum), static_cast<bool>(param.nesterov),
+        static_cast<DType>(param.lr), static_cast<DType>(param.wd), req[0]);
+    }
+    else {
+      Kernel<ERSGDLocalUpdateKernelV1, xpu>::Launch(s, inputs[0].shape_.Size(),
+        out_data, r, m, m_wd, weight_data, grad_data,
+        static_cast<DType>(param.clip_gradient), static_cast<DType>(param.rescale_grad),
+        static_cast<DType>(param.momentum), static_cast<bool>(param.nesterov),
+        static_cast<DType>(param.lr), static_cast<DType>(param.wd), req[0]);
+    }
   });
 }
 
