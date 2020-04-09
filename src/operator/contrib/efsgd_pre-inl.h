@@ -67,6 +67,55 @@ struct EFSGDPreParam : public dmlc::Parameter<EFSGDPreParam> {
 };
 
 
+// struct EFSGDPreUpdateKernel {
+//   template<typename DType>
+//   MSHADOW_XINLINE static void Map(index_t i,
+//     DType* out_data, DType* e, DType* m, DType* m_wd,
+//     const DType* weight_data, DType* grad_data,
+//     const DType clip_gradient, const DType rescale_grad,
+//     const DType momentum, const bool nesterov, 
+//     const DType lr, const DType wd,  
+//     const OpReqType req) {
+//     using namespace mshadow_op;
+
+//     grad_data[i] *= rescale_grad;
+
+//     if (clip_gradient >= 0.0f) {
+//       grad_data[i] = clip::Map(grad_data[i], clip_gradient);
+//     }
+
+//     grad_data[i] *= lr;
+
+//     // momentum
+//     m[i] = momentum * m[i] + grad_data[i];
+//     if (nesterov) {
+//       grad_data[i] += momentum * m[i];
+//     }
+//     else {
+//       grad_data[i] = m[i];
+//     }
+
+//     // weight decay
+//     m_wd[i] = momentum * m_wd[i] + lr * wd * weight_data[i];
+
+//     DType weight = weight_data[i];
+
+//     if (nesterov) {
+//       weight *= (1.f - lr * wd);
+//       weight -= momentum * m_wd[i];
+//     }
+//     else {
+//       weight -= m_wd[i];
+//     }
+
+//     // error feedback
+//     e[i] += grad_data[i];
+
+//     KERNEL_ASSIGN(out_data[i], req, weight);
+//   }
+// };
+
+// put lr outside momentum
 struct EFSGDPreUpdateKernel {
   template<typename DType>
   MSHADOW_XINLINE static void Map(index_t i,
@@ -84,8 +133,6 @@ struct EFSGDPreUpdateKernel {
       grad_data[i] = clip::Map(grad_data[i], clip_gradient);
     }
 
-    grad_data[i] *= lr;
-
     // momentum
     m[i] = momentum * m[i] + grad_data[i];
     if (nesterov) {
@@ -96,20 +143,19 @@ struct EFSGDPreUpdateKernel {
     }
 
     // weight decay
-    m_wd[i] = momentum * m_wd[i] + lr * wd * weight_data[i];
+    m_wd[i] = momentum * m_wd[i] + wd * weight_data[i];
 
     DType weight = weight_data[i];
 
     if (nesterov) {
-      weight *= (1.f - lr * wd);
-      weight -= momentum * m_wd[i];
+      weight -= lr * (momentum * m_wd[i] + wd * weight_data[i]);
     }
     else {
-      weight -= m_wd[i];
+      weight -= lr * m_wd[i];
     }
 
     // error feedback
-    e[i] += grad_data[i];
+    e[i] += lr * grad_data[i];
 
     KERNEL_ASSIGN(out_data[i], req, weight);
   }
