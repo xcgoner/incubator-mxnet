@@ -201,7 +201,7 @@ struct ERSGDLocalUpdateKernel {
     }
 
     // local update
-    grad_data[i] *= lr
+    grad_data[i] *= lr;
     weight -= grad_data[i];
     r[i] += grad_data[i];
 
