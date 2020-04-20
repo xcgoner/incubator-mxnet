@@ -191,9 +191,9 @@ struct MP_EFSGDPreUpdateKernel {
   MSHADOW_XINLINE static void Map(index_t i,
     DType* out_data, float* e, float* m, float* m_wd,
     const DType* weight_data, DType* grad_data, float* weight32,
-    const DType clip_gradient, const DType rescale_grad,
-    const DType momentum, const bool nesterov, 
-    const DType lr, const DType wd,  
+    const float clip_gradient, const float rescale_grad,
+    const float momentum, const bool nesterov, 
+    const float lr, const float wd,  
     const OpReqType req) {
     using namespace mshadow_op;
 
