@@ -253,7 +253,7 @@ inline void MP_EFSGDPreUpdate(const nnvm::NodeAttrs& attrs,
     Tensor<xpu, 2, DType> out = outputs[0].FlatTo2D<xpu, DType>(s);
     Kernel<MP_EFSGDPreUpdateKernel, xpu>::Launch(s, weight.shape_.Size(), out.dptr_,
       e.dptr_, m.dptr_, m_wd.dptr_, weight.dptr_, grad.dptr_, weight32.dptr_,
-      param.clip_gradient, (param.rescale_grad,
+      param.clip_gradient, param.rescale_grad,
       param.momentum, param.nesterov,
       param.lr, param.wd, req[0]);
   });
