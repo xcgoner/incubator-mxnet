@@ -185,6 +185,80 @@ inline void EFSGDPreUpdate(const nnvm::NodeAttrs &attrs, const OpContext &ctx,
   });
 }
 
+// put lr outside momentum
+struct MP_EFSGDPreUpdateKernel {
+  template<typename DType>
+  MSHADOW_XINLINE static void Map(index_t i,
+    DType* out_data, float* e, float* m, float* m_wd,
+    const DType* weight_data, DType* grad_data, float* weight32,
+    const DType clip_gradient, const DType rescale_grad,
+    const DType momentum, const bool nesterov, 
+    const DType lr, const DType wd,  
+    const OpReqType req) {
+    using namespace mshadow_op;
+
+    float w = weight32[i];
+
+    float g;
+    if (clip_gradient >= 0.0f) {
+      g = mshadow_op::clip::Map(rescale_grad
+                    *static_cast<float>(grad_data[i]), clip_gradient);
+    } else {
+      g = rescale_grad*static_cast<float>(grad_data[i]);
+    }
+
+    // momentum
+    m[i] = momentum * m[i] + g;
+    if (nesterov) {
+      g += momentum * m[i];
+    }
+    else {
+      g = m[i];
+    }
+
+    // weight decay
+    m_wd[i] = momentum * m_wd[i] + wd * w;
+
+    if (nesterov) {
+      w -= lr * (momentum * m_wd[i] + wd * w);
+    }
+    else {
+      w -= lr * m_wd[i];
+    }
+
+    // error feedback
+    e[i] += lr * grad_data[i];
+    
+    weight32[i] = w;
+    KERNEL_ASSIGN(out_data[i], req, w);
+  }
+};
+
+template<typename xpu>
+inline void MP_EFSGDPreUpdate(const nnvm::NodeAttrs& attrs,
+                         const OpContext &ctx,
+                         const std::vector<TBlob> &inputs,
+                         const std::vector<OpReqType> &req,
+                         const std::vector<TBlob> &outputs) {
+  using namespace mxnet_op;
+  const EFSGDPreParam param = nnvm::get<EFSGDPreParam>(attrs.parsed);
+  Stream<xpu>* s = ctx.get_stream<xpu>();
+  MSHADOW_REAL_TYPE_SWITCH(inputs[0].type_flag_, DType, {
+    Tensor<xpu, 2, DType> weight = inputs[0].FlatTo2D<xpu, DType>(s);
+    Tensor<xpu, 2, DType> grad = inputs[1].FlatTo2D<xpu, DType>(s);
+    Tensor<xpu, 2, float> e = inputs[2].FlatTo2D<xpu, float>(s);
+    Tensor<xpu, 2, float> m = inputs[3].FlatTo2D<xpu, float>(s);
+    Tensor<xpu, 2, float> m_wd = inputs[4].FlatTo2D<xpu, float>(s);
+    Tensor<xpu, 2, float> weight32 = inputs[5].FlatTo2D<xpu, float>(s);
+    Tensor<xpu, 2, DType> out = outputs[0].FlatTo2D<xpu, DType>(s);
+    Kernel<MP_EFSGDPreUpdateKernel, xpu>::Launch(s, weight.shape_.Size(), out.dptr_,
+      e.dptr_, m.dptr_, m_wd.dptr_, weight.dptr_, grad.dptr_, weight32.dptr_,
+      param.clip_gradient, (param.rescale_grad,
+      param.momentum, param.nesterov,
+      param.lr, param.wd, req[0]);
+  });
+}
+
 }  // namespace op
 }  // namespace mxnet
 

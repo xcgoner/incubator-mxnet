@@ -31,5 +31,8 @@ namespace op {
 NNVM_REGISTER_OP(efsgd_pre_update)
 .set_attr<FCompute>("FCompute<gpu>", EFSGDPreUpdate<gpu>);
 
+NNVM_REGISTER_OP(mp_efsgd_pre_update)
+.set_attr<FCompute>("FCompute<gpu>", MP_EFSGDPreUpdate<gpu>);
+
 }  // namespace op
 }  // namespace mxnet
