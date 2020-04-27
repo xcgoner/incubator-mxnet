@@ -227,7 +227,7 @@ struct MP_EFSGDPreUpdateKernel {
     }
 
     // error feedback
-    e[i] += lr * grad_data[i];
+    e[i] += lr * g;
     
     weight32[i] = w;
     KERNEL_ASSIGN(out_data[i], req, w);
