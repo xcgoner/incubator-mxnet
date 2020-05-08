@@ -227,7 +227,8 @@ struct MP_EFSGDPreUpdateKernel {
     }
 
     // error feedback
-    e[i] += static_cast<DType>(lr * g);
+    // e[i] += static_cast<DType>(lr * g);
+    e[i] += lr * g;
     
     weight32[i] = w;
     KERNEL_ASSIGN(out_data[i], req, w);
