@@ -216,15 +216,15 @@ struct MP_EFSGDPreUpdateKernel {
       g = m[i];
     }
 
-    // // weight decay
-    // m_wd[i] = momentum * m_wd[i] + wd * w;
+    // weight decay
+    m_wd[i] = momentum * m_wd[i] + wd * w;
 
-    // if (nesterov) {
-    //   w -= lr * (momentum * m_wd[i] + wd * w);
-    // }
-    // else {
-    //   w -= lr * m_wd[i];
-    // }
+    if (nesterov) {
+      w -= lr * (momentum * m_wd[i] + wd * w);
+    }
+    else {
+      w -= lr * m_wd[i];
+    }
 
     // error feedback
     e[i] += static_cast<DType>(lr * g);
