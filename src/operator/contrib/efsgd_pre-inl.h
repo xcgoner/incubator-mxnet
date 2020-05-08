@@ -189,7 +189,7 @@ inline void EFSGDPreUpdate(const nnvm::NodeAttrs &attrs, const OpContext &ctx,
 struct MP_EFSGDPreUpdateKernel {
   template<typename DType>
   MSHADOW_XINLINE static void Map(index_t i,
-    DType* out_data, float* e, float* m, float* m_wd,
+    DType* out_data, DType* e, float* m, float* m_wd,
     const DType* weight_data, DType* grad_data, float* weight32,
     const float clip_gradient, const float rescale_grad,
     const float momentum, const bool nesterov, 
@@ -227,7 +227,7 @@ struct MP_EFSGDPreUpdateKernel {
     }
 
     // error feedback
-    e[i] += lr * g;
+    e[i] += static_cast<DType>(lr * g);
     
     weight32[i] = w;
     KERNEL_ASSIGN(out_data[i], req, w);
@@ -246,7 +246,7 @@ inline void MP_EFSGDPreUpdate(const nnvm::NodeAttrs& attrs,
   MSHADOW_REAL_TYPE_SWITCH(inputs[0].type_flag_, DType, {
     Tensor<xpu, 2, DType> weight = inputs[0].FlatTo2D<xpu, DType>(s);
     Tensor<xpu, 2, DType> grad = inputs[1].FlatTo2D<xpu, DType>(s);
-    Tensor<xpu, 2, float> e = inputs[2].FlatTo2D<xpu, float>(s);
+    Tensor<xpu, 2, DType> e = inputs[2].FlatTo2D<xpu, DType>(s);
     Tensor<xpu, 2, float> m = inputs[3].FlatTo2D<xpu, float>(s);
     Tensor<xpu, 2, float> m_wd = inputs[4].FlatTo2D<xpu, float>(s);
     Tensor<xpu, 2, float> weight32 = inputs[5].FlatTo2D<xpu, float>(s);

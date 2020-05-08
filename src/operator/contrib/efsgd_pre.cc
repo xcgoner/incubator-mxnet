@@ -58,7 +58,7 @@ NNVM_REGISTER_OP(mp_efsgd_pre_update)
 .set_num_outputs(1)
 .set_attr_parser(ParamParser<EFSGDPreParam>)
 .set_attr<mxnet::FInferShape>("FInferShape", ElemwiseShape<6, 1>)
-.set_attr<nnvm::FInferType>("FInferType", MP_InferType<2, 1, 6>)
+.set_attr<nnvm::FInferType>("FInferType", MP_InferType<3, 1, 6>)
 .set_attr<nnvm::FMutateInputs>("FMutateInputs",
   [](const nnvm::NodeAttrs& attrs) {
     return std::vector<uint32_t>{1,2,3,4,5};
