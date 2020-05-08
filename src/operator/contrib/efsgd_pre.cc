@@ -24,6 +24,7 @@
  * \author 
  */
 #include "./efsgd_pre-inl.h"
+#include "../optimizer_op-inl.h"
 
 namespace mxnet {
 namespace op {
