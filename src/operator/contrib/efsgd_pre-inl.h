@@ -197,8 +197,6 @@ struct MP_EFSGDPreUpdateKernel {
     const OpReqType req) {
     using namespace mshadow_op;
 
-    float w = weight32[i];
-
     float g;
     if (clip_gradient >= 0.0f) {
       g = mshadow_op::clip::Map(rescale_grad
@@ -217,21 +215,20 @@ struct MP_EFSGDPreUpdateKernel {
     }
 
     // weight decay
-    m_wd[i] = momentum * m_wd[i] + wd * w;
+    m_wd[i] = momentum * m_wd[i] + wd * weight32[i];
 
     if (nesterov) {
-      w -= lr * (momentum * m_wd[i] + wd * w);
+      weight32[i] -= lr * (momentum * m_wd[i] + wd * weight32[i]);
     }
     else {
-      w -= lr * m_wd[i];
+      weight32[i] -= lr * m_wd[i];
     }
 
     // error feedback
     e[i] += static_cast<DType>(lr * g);
     // e[i] += lr * g;
     
-    weight32[i] = w;
-    KERNEL_ASSIGN(out_data[i], req, w);
+    KERNEL_ASSIGN(out_data[i], req, weight32[i]);
   }
 };
 
